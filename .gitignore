@@ -1,0 +1,3 @@
+# ignore Mtlab temporary files and Elena's presentation
+*.m~
+presentation.pdf
