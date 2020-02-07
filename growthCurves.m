@@ -56,14 +56,19 @@ global graphPar
 %   2. linear regression line style
 %   3. Color of the dataset
 %   4. Legend label for each dataset
-graphPar = {'o', ':', [0, 0.4470, 0.7410], 'medium'; ...
-            'x', '-.', [0.8500, 0.3250, 0.0980], 'low'};% ...
-            %'s', [0.9290, 0.6940, 0.1250], 'high'};
+graphPar = {'x', ':', [0.8500, 0.3250, 0.0980], [char(189), 'S', char(352), ', Trickle']; ...
+            'o', ':', [0, 0.4470, 0.7410], 'BBM'; ...
+            'v', ':', [0.9290, 0.6940, 0.1250], [char(189), 'S', char(352)]; ...
+            '^', ':', [0.4940, 0.1840, 0.5560], ['BBM+HCO', char([8323, 8315])]};
 
 % Cell with the names of the XLSX (Excel files) containing the cell counts
 % of the various dates.
 % Each file contains one experiment. Do not include the '.xlsx' extension
-powers = {'medium', 'low'};
+powers = {'low', 'bbm', 'SS', 'bbmHCO3-'};
+
+% Create empty matrix of count days
+Chl_day = {''};
+DDq_day = {''};
 
 % Get rid of any old figures
 close all
@@ -78,13 +83,21 @@ end
 
 % Run through all datasets one-by-one
 for pwr = 1 : numel(powers)
+    % List of species, that will form a field of a struct holding the data
+    species = {'Cvulgaris', 'Dquadricauda'};
 
     % Load the growth data
     % The sheet name in the table is critical to parsing the XLSX file.
     table.Cvulgaris = readtable([powers{pwr} '.xlsx'], ...
                                 'Sheet', 'C. vulgaris');
-    table.Dquadricauda = readtable([powers{pwr} '.xlsx'], ...
-                                   'Sheet', 'D. quadricauda');
+    % Not all sheets have D. quadricauda, so don't crash if this happens
+    try
+        table.Dquadricauda = readtable([powers{pwr} '.xlsx'], ...
+                                       'Sheet', 'D. quadricauda');
+    catch
+        % Remove Dquadricauda
+        species(2) = [];
+    end
 
     % Create structs for the data in the XLSX tables
     Chl = struct('date', [], ...
@@ -92,7 +105,8 @@ for pwr = 1 : numel(powers)
                  'avgDensity', [], ...
                  'temperature', []);
     DDq = Chl;
-    for i = {'Cvulgaris', 'Dquadricauda'}
+
+    for i = species
         % extract the string with the organism
         org = i{1};
         % Get the dates
@@ -218,52 +232,46 @@ for pwr = 1 : numel(powers)
             end
         end
     end
-    % Fill in gaps in the data
-    % Sometimes the counting is not done on every day. These missing dates
-    % need to be inserted into the matrices of data as NaNs
-    gaps = diff(cellfun(@str2double, DDq.day)) - 1;
-    % Find days when there is more than a day between itself and the next
-    % experimental time point.
-    gapsIn = find(gaps);
-    % Go through all these days in the direction from the last gap to the
-    % first gap in the data.
-    for i = fliplr(gapsIn)
-        % Fill in the names of the dates as an empty string ('') for days
-        % when no measurements has taken place.
-        DDq.day = horzcat(DDq.day(1 : i), ...
-                          repmat({''}, 1, gaps(i)), ...
-                          DDq.day(i + 1 : end));
-        % Fill in the counts on the dates when experiments were skipped by
-        % NaNs
-        DDq.density = horzcat(DDq.density(:, 1 : i), ...
-                              NaN(size(DDq.density, 1), gaps(i)), ...
-                              DDq.density(:, i + 1 : end));
-    end
-    % Fill in gaps in the data in the Chlorella dataset. Do the same as
-    % above
-    gaps = diff(cellfun(@str2double, Chl.day)) - 1;
-    gapsIn = find(gaps);
-    for i = fliplr(gapsIn)
-        Chl.day = horzcat(Chl.day(1 : i), ...
-                          repmat({''}, 1, gaps(i)), ...
-                          Chl.day(i + 1 : end));
-        Chl.density = horzcat(Chl.density(:, 1 : i), ...
-                              NaN(size(Chl.density, 1), gaps(i)), ...
-                              Chl.density(:, i + 1 : end));
-    end
-
+    
+    % Since counting happens on different days, we need to aggregate days
+    % from all experiments
+    % Combine all days from all experiments, converting them to integers
+    Chl.alldays = sort(unique(horzcat(cellfun(@str2double, Chl.day), ...
+                                      cellfun(@str2double, Chl_day))));
+    % Get rid of any NaNs
+    Chl.alldays(isnan(Chl.alldays)) = [];
+    % Convert the days back to cell array of strings
+    Chl.alldays = compose('%d', Chl.alldays);
+    % Store the list of all days into a cell array for next iterration
+    Chl_day = Chl.alldays;
+    
     % Plot the results
     % This populates the graphs with the data and labels them accordingly
     % Plot Chlorella vulgaris data
-    makePlot(Chl.day, ...       % X Tick labels
-             Chl.density, ...   % Cell count data
+    makePlot(Chl, ...           % Input data
              'C. vulgaris', ... % Species named in the graph title
              pwr, ...           % Current experiment index (power)
              hf(1, :))          % Handles to appropriate figure and axes
 
+    % Stop the execution here, if the D. quadricauda dataset does not exist
+    if numel(species) == 1
+        continue
+    end
+
+    % Since counting happens on different days, we need to aggregate days
+    % from all experiments
+    % Combine all days from all experiments, converting them to integers
+    DDq.alldays = sort(unique(horzcat(cellfun(@str2double, DDq.day), ...
+                                      cellfun(@str2double, DDq_day))));
+    % Get rid of any NaNs
+    DDq.alldays(isnan(DDq.alldays)) = [];
+    % Convert the days back to cell array of strings
+    DDq.alldays = compose('%d', DDq.alldays);
+    % Store the list of all days into a cell array for next iterration
+    DDq_day = DDq.alldays;
+
     % Plot Desmodesmus quadricauda data
-    makePlot(DDq.day, ...       % X Tick labels
-             DDq.density, ...   % Cell count data
+    makePlot(DDq, ...           % Data to plot
              'D. quadricauda', ...  % Species named in the graph title
              pwr, ...           % Current experiment index (power)
              hf([2, 3], :), ... % Handles to appropriate figures and axes
@@ -271,11 +279,10 @@ for pwr = 1 : numel(powers)
 end
 
 
-function makePlot(day, density, species, pwr, hfig, result)
+function makePlot(data, species, pwr, hfig, result)
 % This function plots the data from the growth curve cell counting
 % experiments
-%   day:        X Tick labels
-%   density:    Cell count data
+%   data:       Input data
 %   species:    Species in the graph title
 %   pwr:        Current experiment index (power)
 %   hfig:       Handles to appropriate figures and axes
@@ -284,13 +291,36 @@ function makePlot(day, density, species, pwr, hfig, result)
 % global variable with graph parameters
 global graphPar
 
+% Calculate, which dates have not got any data.
+% Spread the data into a matrix, which is NaNs, where there is no data
+
+% Combine current days and all days.
+alldays = cellfun(@str2double, horzcat(data.day, data.alldays));
+% Get rid of any NaNs
+alldays(isnan(alldays)) = [];
+% Sort them and keep only unique values
+alldays = sort(unique(alldays));
+
+% Convert days to numbers
+days = cellfun(@str2double, data.day);
+
+% Create empty vector of days for plotting
+plotdays = repmat({''}, 1, alldays(end) - alldays(1) + 1);
+% Create empty matrix of cell density for plotting
+plotdensity = NaN(size(data.density, 1), numel(plotdays));
+
+% Fill the days vector with input data
+plotdays(alldays + 1) = compose('%d', alldays);
+% Fill the cell density matrix with input data
+plotdensity(:, days + 1) = data.density;
+
 % Switch to the appropriate figure
 figure(hfig(1, 1))
 % Switch to the appropriate axes
 axes(hfig(1, 2))
 % Plot the univariate scatter plots of the cell count results
-UnivarScatter(density, ...                              % Data
-              'Label', day, ...                         % X Tick labels
+UnivarScatter(plotdensity, ...                          % Cell density data
+              'Label', plotdays, ...                    % Days data
               'MarkerFaceColor', 'none', ...            % No Marker fill
               'MarkerEdgeColor', graphPar{pwr, 3}, ...  % Marker line color
               'PointStyle', graphPar{pwr, 1}, ...       % Marker shape
@@ -303,7 +333,7 @@ xlabel('Time [day]')
 % Provide Y axis label
 ylabel('Cell Density [ml^{-1}]')
 % Title the graph, naming hte species
-title(sprintf('{\\it %s} Culture Growth Timeline', species))
+ht = title(sprintf('{\\it %s} Culture Growth Timeline', species))
 % Ensure the axes have consistant size
 set(gca, 'Position', [100, 100, 600, 600])
 % Change axes to square - the axes with the univariate scatter plots in
@@ -314,23 +344,56 @@ axis square
 % Keep drawing over the existing data
 hold on
 % Change the day labels, which are strings into numbers
-day = repmat(cellfun(@str2double, day), size(density, 1), 1);
+alldays = repmat(days, size(plotdensity, 1), 1);
+
 % Find abrupt change in the growth curve, i.e. where the cells culture
 % starts being limited by light or nutrients. Apply to logarithm of the
 % data. The exponential growth phase is assumed to be linear on the
 % logarithmic scale.
-% Requires the signal processing toolbox
-ipt = findchangepts(log10(density(~isnan(density))), 'Statistic', 'std');
+% Requires the signal processing toolbox to get findchangpts function
+ipt = findchangepts(log10(plotdensity(~isnan(plotdensity))), ...
+                    'Statistic', 'std');
+% ipt gives the point, where the curve suddenly changes. This is the first
+% point of a group of points from one day. Instead, we should include the
+% whole group of measurements from that day.
+ipt = ceil(ipt / size(plotdensity, 1)) * size(plotdensity, 1);
+
+% % Only look for changes in the average values
+% % Interpolate the missing days
+% D = 1 : size(plotdensity, 2);
+% % create matrix of interpolated data
+% intPlotDen = plotdensity;
+% for i = 1 : size(plotdensity, 1)
+%     % go through the data line-by-line
+%     plotDen = plotdensity(i, :);
+%     % Find NaNs for days when counting didn't happen
+%     nans = isnan(plotDen);
+%     % Interpolate the NaNs in the line
+%     intPlotDen(i, nans) = interp1(D(~nans), plotDen(~nans), D(nans));
+% end
+% % Get rid of the NaN left at the end
+% intPlotDen(isnan(intPlotDen)) = [];
+% % Find the position of the change in the slope
+% ipt = findchangepts(intPlotDen(:), 'Statistic', 'linear');
+% % ipt gives the point, where the curve suddenly changes. This is the first
+% % point of a group of points from one day. Instead, we should include the
+% % whole group of measurements from that day.
+% ipt = ceil(ipt / size(plotdensity, 1)) * size(plotdensity, 1);
+% % % Convert the index into to reflect the number of repeats in each day
+% % ipt = size(plotdensity, 1) * ipt;
+
 % Calculate the linear regression of the data, between the first 
 % measurement and the point of the abrupt change
-[linCoef, errEst] = polyfit(day(1 : ipt), log10(density(1 : ipt)), 1);
+[linCoef, errEst] = polyfit(alldays(1 : ipt), ...
+                            log10(plotdensity(1 : ipt)), 1);
 % Calculate the linear regression values 
-Yf = polyval(linCoef, day(1 : ipt), errEst);
+Yf = polyval(linCoef, alldays(1 : ipt), errEst);
 % Plot the linear part of the curve
-plot(1 + day(1 : ipt), 10 .^ Yf, ...    % Linear Regression data points
+plot(1 + alldays(1 : ipt), 10 .^ Yf, ...    % Linear Regression data points
      graphPar{pwr, 2}, ...              % Line style
      'LineWidth', 2, ...                % Line thickness
-     'Color', graphPar{pwr, 3});        % Line color
+     'Color', graphPar{pwr, 3}, ...     % Line color
+     'Tag', 'regression');              % Give a tag to the line
 % Calculate the errors of the linear regression coefficients and the cell
 % doubling time.
 % The calculations below follow the instructions from the document below:
@@ -341,9 +404,9 @@ plot(1 + day(1 : ipt), 10 .^ Yf, ...    % Linear Regression data points
 % Select datapoints for the linear least sqaures from the linear section 
 % of the cell count data
 % X axis data (days of measurement)
-x = day(1 : ipt);
+x = alldays(1 : ipt);
 % Y axis data (base 2 logarithm of the cell count
-y = log2(density(1 : ipt));
+y = log2(plotdensity(1 : ipt));
 % Slope of the linear regression
 k = (ipt * sum(x .* y) - sum(x) * sum(y)) /...
     (ipt * sum(x .^ 2) - sum(x) ^ 2);
@@ -368,16 +431,18 @@ tD = 1 / k;
 CI95tD = tD * CI95k / k;
 
 % Print the fit results
-fprintf('%s doubling time (tD): (%.2f %s %.2f) days.\n', ...
-        species, ...    % Organism species
-        tD, ...         % Doubling time
-        char(177), ...  % Plus minus symbol
-        CI95tD)         % 95% confidence interval of the doubling time
-fprintf('%s doubling time (tD): (%.0f %s %.0f) hours.\n', ...
-        species, ...    % Organism species
-        24 * tD, ...    % Doubling time in hours
-        char(177), ...  % Plus minus symbol
-        24 * CI95tD)    % 95% CI of the doubling time in hours
+fprintf('%s in %s doubling time (tD): (%.2f %s %.2f) days.\n', ...
+        species, ...            % Organism species
+        graphPar{pwr, 4}, ...   % Medium
+        tD, ...                 % Doubling time
+        char(177), ...          % Plus minus symbol
+        CI95tD)                 % 95% CI of the doubling time in hours
+fprintf('%s in %s doubling time (tD): (%.0f %s %.0f) hours.\n', ...
+        species, ...            % Organism species
+        graphPar{pwr, 4}, ...   % Medium
+        24 * tD, ...            % Doubling time in hours
+        char(177), ...          % Plus minus symbol
+        24 * CI95tD)            % 95% CI of the doubling time in hours
 
 % Remove whiskers
 delete(findobj(get(gca, 'Children'), 'Type', 'Rectangle'))
@@ -412,8 +477,10 @@ for i = 1 : pwr
     
     % Get the handles of all lines with the line style of the current one
     hl = findobj(get(gca, 'Children'), ...
-                 'Type', 'Line', ...            % Lines
-                 'LineStyle', graphPar{i, 2});  % Right line style objects
+                 'Type', 'Line', ...                % Lines
+                 'LineStyle', graphPar{i, 2}, ...   % Right line style
+                 'Color', graphPar{i, 3}, ...       % Right color
+                 'Tag', 'regression');              % Right tag object
     % Store only the first identified line, they are all the same
     hleg(2, i) = hl(1);
     % Store the legend entry, including the illumination power
@@ -421,9 +488,10 @@ for i = 1 : pwr
     % Get the handles of all lines with the solid line style and color of 
     % the current one
     hl = findobj(get(gca, 'Children'), ...
-                 'Type', 'Line', ...        % Lines only
-                 'LineStyle', '-', ...      % with solid line style
-                 'Color', graphPar{i, 3});  % and the right color
+                 'Type', 'Line', ...            % Lines only
+                 'LineStyle', '-', ...          % with solid line style
+                 'Color', graphPar{i, 3}, ...   % the right color
+                 'LineWidth', 2);               % and the right thickness
     % Store only the first identified line, they are all the same
     hleg(3, i) = hl(1);
     % Store the legend entry, including the illumination power
@@ -438,6 +506,16 @@ set(gca, 'FontSize', 16)
 fname = sprintf('%s.png', regexprep(species, ' ', ''));
 % Store the figure as a PNG file
 saveas(gcf, fname, 'png')
+
+delete(ht)
+% Adjust figure parameters for good PDF export
+set(gcf, 'Units', 'centimeters');
+pos = get(gcf, 'Position');
+set(gcf, 'PaperPositionMode', 'Auto', ...
+         'PaperUnits', 'centimeters', ...
+         'PaperSize', [pos(3), pos(4)])
+% Store the figure as a PDF file
+print(gcf, regexprep(fname, 'png', 'pdf'), '-dpdf', '-r0')
 
 % Only for Desmodesmus quadricauda, make a plot of the relative abundance
 % of doublets, quadruplets, and octuplets
@@ -455,11 +533,11 @@ if nargin > 5
     % Calculate the total cells
     tot = doub + quad + oct;
     % Extract the days, which have experimental data, i.e. not NaNs
-    day = day(1, ~isnan(day(1, :)));
+    alldays = alldays(1, ~isnan(alldays(1, :)));
     % Plot the relative abundance of cells in the different coenobia types
-    plot(day, 100 * doub ./ tot, ...
-         day, 100 * quad ./ tot, ...
-         day, 100 * oct ./ tot)
+    plot(alldays, 100 * doub ./ tot, ...
+         alldays, 100 * quad ./ tot, ...
+         alldays, 100 * oct ./ tot)
     % Keep drawing over the existing data
     hold on
 end
