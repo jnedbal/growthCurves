@@ -336,7 +336,7 @@ xlabel('Time [day]')
 % Provide Y axis label
 ylabel('Cell Density [ml^{-1}]')
 % Title the graph, naming hte species
-ht = title(sprintf('{\\it %s} Culture Growth Timeline', species))
+ht = title(sprintf('{\\it %s} Culture Growth Timeline', species));
 % Ensure the axes have consistant size
 set(gca, 'Position', [100, 100, 600, 600])
 % Change axes to square - the axes with the univariate scatter plots in
