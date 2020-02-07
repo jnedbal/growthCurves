@@ -49,6 +49,9 @@ function growthCurves
 % Global variable used in plotting the data
 global graphPar
 
+% Change the Figure render settings for uncorrupted PDF export
+set(0, 'DefaultFigureRendererMode', 'manual');
+
 % Populate the cell with the parameters of the plot.
 % Each dataset gets one line in the cell.
 % The columns have the following meaning:
