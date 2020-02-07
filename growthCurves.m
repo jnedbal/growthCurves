@@ -60,14 +60,14 @@ set(0, 'DefaultFigureRendererMode', 'manual');
 %   3. Color of the dataset
 %   4. Legend label for each dataset
 graphPar = {'x', ':', [0.8500, 0.3250, 0.0980], [char(189), 'S', char(352), ', Trickle']; ...
-            'o', ':', [0, 0.4470, 0.7410], 'BBM'; ...
-            'v', ':', [0.9290, 0.6940, 0.1250], [char(189), 'S', char(352)]; ...
+            'o', ':', [0, 0.4470, 0.7410], [char(189), 'S', char(352)]; ...
+            'v', ':', [0.9290, 0.6940, 0.1250], 'BBM'; ...
             '^', ':', [0.4940, 0.1840, 0.5560], ['BBM+HCO', char([8323, 8315])]};
 
 % Cell with the names of the XLSX (Excel files) containing the cell counts
 % of the various dates.
 % Each file contains one experiment. Do not include the '.xlsx' extension
-powers = {'low', 'bbm', 'SS', 'bbmHCO3-'};
+powers = {'low', 'SS', 'bbm', 'bbmHCO3-'};
 
 % Create empty matrix of count days
 Chl_day = {''};
